@@ -11,8 +11,8 @@ pub struct ImageParams {
 }
 
 impl ImageParams {
-    pub fn get_image_path(&self) -> String {
-        file_utils::build_input_path(self)
+    pub fn get_image_path(&self, path: &str) -> String {
+        file_utils::build_input_path(path, self)
     }
 
     pub fn get_format(&self) -> Option<ImageOutputFormat> {
@@ -23,7 +23,7 @@ impl ImageParams {
         match ext {
             Some(ext) => match ext {
                 "png" => Some(ImageOutputFormat::Png),
-                "jpeg" => Some(ImageOutputFormat::Jpeg(1)),
+                "jpeg" | "jpg" => Some(ImageOutputFormat::Jpeg(0)),
                 "webp" => Some(ImageOutputFormat::WebP),
                 "gif" => Some(ImageOutputFormat::Gif),
                 _ => None,
