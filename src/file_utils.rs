@@ -1,6 +1,5 @@
 use crate::AppConfig;
 use crate::ImageParams;
-use std::fs::File;
 
 pub struct FileUtils {
     config: AppConfig,
@@ -11,16 +10,19 @@ impl FileUtils {
         FileUtils { config }
     }
 
-    pub fn file_exists(&self, file_name: &str) -> bool {
+    pub async fn file_exists(&self, file_name: &str) -> bool {
         let full_path = self.build_path(&self.config.input_path, file_name);
 
         println!("{full_path}");
 
-        let file = File::open(&full_path);
-        file.is_ok()
+        if let Ok(meta_data) = tokio::fs::metadata(&full_path).await {
+            meta_data.is_file()
+        } else {
+            false
+        }
     }
 
-    pub fn build_output_path(
+    pub async fn build_output_path(
         &self,
         params: &ImageParams,
     ) -> Result<String, Box<dyn std::error::Error>> {
@@ -34,9 +36,10 @@ impl FileUtils {
             &format!("{}{}{}", width, std::path::MAIN_SEPARATOR, height),
         );
 
-        match std::fs::DirBuilder::new()
+        match tokio::fs::DirBuilder::new()
             .recursive(true)
             .create(&output_path)
+            .await
         {
             Ok(_) => Ok(output_path),
             Err(e) => Err(Box::new(e)),
