@@ -10,8 +10,8 @@ edition = "2021"
 "tokio" = {version = "1.39.2", features = ["full"]}
 log = "0.4"
 env_logger = "0.9"
-image = "0.24.6" 
+image = "0.25.2" 
+webp = "0.3"
 lru = "0.12.4"
 dotenvy = "0.15.7"
-webp = "0.3.0"
-
+fast_image_resize = {version = "4.2.1", features=["image"]}

@@ -1,10 +1,9 @@
 use crate::models::ImageParams;
-use image::DynamicImage;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
 pub struct ImageCache {
-    cache: LruCache<String, DynamicImage>,
+    cache: LruCache<String, Vec<u8>>,
 }
 
 impl ImageCache {
@@ -14,11 +13,11 @@ impl ImageCache {
         }
     }
 
-    pub fn get(&mut self, key: &str) -> Option<&DynamicImage> {
+    pub fn get(&mut self, key: &str) -> Option<&Vec<u8>> {
         self.cache.get(key)
     }
 
-    pub fn insert(&mut self, key: String, value: DynamicImage) {
+    pub fn insert(&mut self, key: String, value: Vec<u8>) {
         self.cache.put(key, value);
     }
 

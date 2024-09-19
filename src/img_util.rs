@@ -1,29 +1,19 @@
-use image::imageops::FilterType;
-use image::DynamicImage;
-use webp::{Encoder, WebPMemory};
+use crate::models::ImageParams;
+use fast_image_resize::images::Image;
+use fast_image_resize::{IntoImageView, PixelType, Resizer};
+use image::{ImageFormat, ImageReader};
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
-pub async fn get_image_data(
-    img: &image::DynamicImage,
-    format: image::ImageOutputFormat,
-) -> Result<Vec<u8>, image::ImageError> {
-    let mut data = Vec::new();
-    match img.write_to(&mut std::io::Cursor::new(&mut data), format) {
-        Ok(_) => Ok(data),
-        Err(e) => {
-            error!("Error writing image bytes to the vector!");
-            Err(e)
-        }
-    }
-}
-
-pub async fn get_image(input_path: &str) -> Result<image::DynamicImage, image::ImageError> {
-    match image::open(input_path) {
+pub async fn get_image(
+    input_path: &str,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Sync + Send>> {
+    info!("Getting image from: {input_path}");
+    match tokio::fs::read(input_path).await {
         Ok(img) => Ok(img),
         Err(e) => {
             error!("Error occurred in get_image: {:?}", e);
-            Err(e)
+            Err(Box::new(e))
         }
     }
 }
@@ -33,19 +23,20 @@ pub async fn resize_image(
     output_path: &str,
     new_width: u32,
     new_height: u32,
-) -> Result<image::DynamicImage, image::ImageError> {
+    params: &ImageParams,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     //check if the resized image already exists
-    if let Ok(existing_image) = image::open(output_path) {
+    if get_image(output_path).await.is_ok() {
         info!("Resized image already exists");
-        return Ok(existing_image);
+        return Ok(output_path.to_string());
     }
 
-    let img = image::open(input_path)?;
+    let img = ImageReader::open(input_path).unwrap().decode().unwrap();
 
     //this means no input for resize was provided return the original image
-    if new_height == 0 && new_width == 0 {
-        info!("Resize not required as no input width and height provided");
-        return Ok(img);
+    if new_height == 0 && new_width == 0 && get_image(input_path).await.is_ok() {
+        warn!("Original image reaching to the resizer!");
+        return Ok(input_path.to_string());
     }
 
     let final_width: u32 = if new_width == 0 {
@@ -63,13 +54,43 @@ pub async fn resize_image(
     } else {
         new_height
     };
-
     debug!("Resizing to height: {final_height} and width: {final_width}");
 
-    // Resize the image
-    let resized = img.resize(final_width, final_height, FilterType::Gaussian);
-    // Save the resized image
-    resized.save(output_path)?;
+    let mut output_image = Image::new(
+        final_width,
+        final_height,
+        img.pixel_type().unwrap_or(PixelType::U8x4),
+    );
 
-    Ok(resized)
+    let mut resizer = Resizer::new();
+
+    match resizer.resize(&img, &mut output_image, None) {
+        Ok(_) => info!("Image resized"),
+        Err(e) => {
+            error!("Unable to resize the image {:?}", e);
+        }
+    }
+
+    if let Some(format) = params.get_format() {
+        match format {
+            ImageFormat::WebP => {
+                info!("Found webp");
+                let data = output_image.buffer_mut();
+                let encoder = webp::Encoder::from_rgb(data, final_width, final_height);
+                let webp: webp::WebPMemory = encoder.encode(50f32);
+                info!("Writing output image to {output_path}");
+                tokio::fs::write(&output_path, &*webp).await?;
+                if get_image(output_path).await.is_ok() {
+                    info!("Resized image already exists");
+                    return Ok(output_path.to_string());
+                }
+            }
+            _ => {
+                info!("Not Found webp");
+                return Ok(output_path.to_string());
+            } //do nothing and continue
+        }
+    }
+
+    Ok(output_path.to_string())
 }

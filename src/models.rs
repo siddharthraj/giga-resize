@@ -1,5 +1,4 @@
-use crate::file_utils;
-use image::ImageOutputFormat;
+use image::ImageFormat;
 use serde::Deserialize;
 use std::path::Path;
 
@@ -11,21 +10,17 @@ pub struct ImageParams {
 }
 
 impl ImageParams {
-    pub fn get_image_path(&self, path: &str) -> String {
-        file_utils::build_input_path(path, self)
-    }
-
-    pub fn get_format(&self) -> Option<ImageOutputFormat> {
+    pub fn get_format(&self) -> Option<ImageFormat> {
         let ext = Path::new(&self.file_name)
             .extension()
             .and_then(std::ffi::OsStr::to_str);
 
         match ext {
             Some(ext) => match ext {
-                "png" => Some(ImageOutputFormat::Png),
-                "jpeg" | "jpg" => Some(ImageOutputFormat::Jpeg(0)),
-                "webp" => Some(ImageOutputFormat::WebP),
-                "gif" => Some(ImageOutputFormat::Gif),
+                "png" => Some(ImageFormat::Png),
+                "jpeg" | "jpg" => Some(ImageFormat::Jpeg),
+                "webp" => Some(ImageFormat::WebP),
+                "gif" => Some(ImageFormat::Gif),
                 _ => None,
             },
             None => None,
@@ -33,12 +28,16 @@ impl ImageParams {
     }
 
     pub fn get_content_type(&self) -> Option<String> {
-        match self.get_format() {
-            Some(format) => match format {
-                ImageOutputFormat::Png => Some(String::from("image/png")),
-                ImageOutputFormat::Jpeg(0) => Some(String::from("image/jpeg")),
-                ImageOutputFormat::WebP => Some(String::from("image/webp")),
-                ImageOutputFormat::Gif => Some(String::from("image/gif")),
+        let ext = Path::new(&self.file_name)
+            .extension()
+            .and_then(std::ffi::OsStr::to_str);
+
+        match ext {
+            Some(ext) => match ext {
+                "png" => Some(String::from("image/png")),
+                "jpeg" | "jpg" => Some(String::from("image/jpeg")),
+                "webp" => Some(String::from("image/webp")),
+                "gif" => Some(String::from("image/gif")),
                 _ => None,
             },
             None => None,
