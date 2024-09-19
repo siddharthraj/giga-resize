@@ -1,6 +1,15 @@
 use image::ImageFormat;
 use serde::Deserialize;
 use std::path::Path;
+use tokio::sync::Mutex;
+
+use crate::{image_cache, AppConfig, FileUtils};
+
+pub struct AppData {
+    pub cache: Mutex<image_cache::ImageCache>,
+    pub config: AppConfig,
+    pub file_utils: FileUtils,
+}
 
 #[derive(Deserialize)]
 pub struct ImageParams {
