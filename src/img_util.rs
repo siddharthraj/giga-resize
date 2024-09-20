@@ -1,7 +1,7 @@
 use crate::models::ImageParams;
 use fast_image_resize::images::Image;
 use fast_image_resize::{IntoImageView, PixelType, Resizer};
-use image::{ImageFormat, ImageReader};
+use image::{DynamicImage, ImageBuffer, ImageFormat, ImageReader, Rgb, Rgba};
 
 use log::{debug, error, info, warn};
 
@@ -68,13 +68,14 @@ pub async fn resize_image(
         Ok(_) => info!("Image resized"),
         Err(e) => {
             error!("Unable to resize the image {:?}", e);
+            return Err(Box::new(e));
         }
     }
 
     if let Some(format) = params.get_format() {
         match format {
             ImageFormat::WebP => {
-                info!("Found webp");
+                info!("Encoding webp");
                 let data = output_image.buffer_mut();
                 let encoder = webp::Encoder::from_rgb(data, final_width, final_height);
                 let webp: webp::WebPMemory = encoder.encode(50f32);
@@ -85,12 +86,69 @@ pub async fn resize_image(
                     return Ok(output_path.to_string());
                 }
             }
+            ImageFormat::Png | ImageFormat::Jpeg => {
+                info!("Encoding jpeg");
+
+                let dyn_img = to_dyn_image(output_image);
+
+                if dyn_img.is_none() {
+                    error!("Unable to convert to dynamic image");
+                    return Ok(output_path.to_string());
+                }
+
+                let file =
+                    std::fs::File::create(output_path).expect("Unable to create output file");
+
+                let mut buf = std::io::BufWriter::new(file);
+                dyn_img
+                    .unwrap()
+                    .write_to(&mut buf, format)
+                    .expect("Unable to write the image");
+            }
             _ => {
-                info!("Not Found webp");
-                return Ok(output_path.to_string());
-            } //do nothing and continue
+                error!("Not supported!")
+            }
         }
     }
 
     Ok(output_path.to_string())
+}
+
+fn to_dyn_image(image: Image) -> Option<DynamicImage>
+where
+{
+    match image.pixel_type() {
+        PixelType::U8x3 => {
+            let buff_data = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(
+                image.width(),
+                image.height(),
+                image.buffer().to_vec(),
+            );
+
+            if buff_data.is_none() {
+                error!("Unable to encode image!");
+                return None;
+            }
+            let buffer = buff_data.unwrap();
+            Some(DynamicImage::ImageRgb8(buffer))
+        }
+        PixelType::U8x4 => {
+            let buff_data = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
+                image.width(),
+                image.height(),
+                image.buffer().to_vec(),
+            );
+
+            if buff_data.is_none() {
+                error!("Unable to encode image!");
+                return None;
+            }
+            let buffer = buff_data.unwrap();
+            Some(DynamicImage::ImageRgba8(buffer))
+        }
+        _ => {
+            error!("Not supported!");
+            None
+        }
+    }
 }
